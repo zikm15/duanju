@@ -4,7 +4,8 @@ services:
     runtime: docker
     repo: https://github.com/zikm15/duanju
     branch: afterglow-v1-preview
-    plan: starter
+    # 免费测试版：不挂载持久盘，运行数据可能随服务重建丢失。
+    plan: free
     region: singapore
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
@@ -22,7 +23,3 @@ services:
         value: "1"
       - key: ADMIN_PASSWORD
         generateValue: true
-    disk:
-      name: afterglow-data
-      mountPath: /var/data
-      sizeGB: 1
