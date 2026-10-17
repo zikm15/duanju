@@ -1,19 +1,20 @@
-# Afterglow 实际页面截图
+# PrimeDrama 实际界面截图
 
-以下图片来自云端 Chromium 对已运行网站的实际截图。视频和海报使用原创演示素材。这是图片预览，不是在线网站入口。
+云端 Chromium 运行截图，可在 GitHub 打开；图片不是可交互网站。保留 VIP：前 N 集免费、Basic含广告、Premium无平台广告，PayPal未开通。
 
-## 手机播放页
+| 页面 | 截图 |
+| --- | --- |
+| Home 黑色9:16播放器 | [手机首页](primedrama-home.png) |
+| Discover 白色4:5双列海报 | [手机发现页](primedrama-discover.png) |
+| Inbox | [通知](primedrama-inbox.png) |
+| Profile | [个人页](primedrama-profile.png) |
+| VIP | [会员](primedrama-vip.png) |
+| 电脑适配 | [电脑发现页](primedrama-desktop.png) |
 
-![手机播放页](watch-mobile.png)
+![首页](primedrama-home.png)
 
-## 手机发现页
+![发现](primedrama-discover.png)
 
-![手机发现页](discover-mobile.png)
+[中文使用说明](../使用说明.md) · [公网部署步骤](../公网部署.md)
 
-## 中文管理后台
-
-![中文管理后台](admin-desktop.png)
-
-网站操作及云端启动方法见 [使用说明](../使用说明.md)。
-
-准备部署成可交互的网站，请按 [公网部署说明](../公网部署.md) 连接 Render 和 GitHub。仓库已提供部署配置；平台授权和收费资源确认由账户持有人完成。
+其余旧版 Afterglow 截图保留，不代表新版设计。
