@@ -9,6 +9,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { z } from 'zod';
 import { dramas } from './seed.js';
+import {initializeCommunity,attachProfile,communityState,registerCommunity} from './community.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const hash = value => createHash('sha256').update(value).digest();
@@ -27,6 +28,7 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
     CREATE TABLE IF NOT EXISTS progress (sessionId TEXT REFERENCES sessions(id) ON DELETE CASCADE, dramaId TEXT REFERENCES dramas(id) ON DELETE CASCADE, episodeId TEXT REFERENCES episodes(id) ON DELETE CASCADE, seconds REAL, updated INTEGER, PRIMARY KEY(sessionId,dramaId));
     CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, value TEXT);
     CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT);`);
+  initializeCommunity(db);
   if (!db.prepare('SELECT 1 FROM metadata WHERE key=?').get('seeded')) {
     db.exec('BEGIN');
     for (const d of dramas) {
@@ -36,8 +38,13 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
     db.prepare('INSERT INTO metadata VALUES (?,?)').run('seeded','1');
     db.exec('COMMIT');
   }
-  db.prepare('INSERT OR IGNORE INTO settings VALUES (1,?)').run(JSON.stringify({enabled:true,seconds:5,headline:'Make time for a little escape.',sponsor:'Afterglow Studio',message:'This is a demonstration ad. No advertiser is billed and no revenue is generated.'}));
+  db.prepare('INSERT OR IGNORE INTO settings VALUES (1,?)').run(JSON.stringify({enabled:true,seconds:5,headline:'Make time for a little escape.',sponsor:'PrimeDrama Studio',message:'This is a demonstration ad. No advertiser is billed and no revenue is generated.'}));
   const settings = () => JSON.parse(db.prepare('SELECT value FROM settings WHERE id=1').get().value);
+  if(!db.prepare('SELECT 1 FROM metadata WHERE key=?').get('prime_art_v1')){
+    const cats=['Romance','Drama','Revenge','Sweet','Billionaire','Romance'];
+    for(const [i,d] of dramas.entries())db.prepare('UPDATE dramas SET cover=?,category=? WHERE id=? AND cover=? AND title=? AND category=?').run('/assets/prime-posters.png',cats[i],d.id,`/assets/posters/${d.id}.svg`,d.title,d.category);
+    db.prepare('INSERT INTO metadata VALUES(?,?)').run('prime_art_v1','1');
+  }
   app.disable('x-powered-by');
   app.use(helmet({contentSecurityPolicy: {directives:{defaultSrc:["'self'"],scriptSrc:["'self'"],styleSrc:["'self'","'unsafe-inline'"],imgSrc:["'self'",'data:','blob:'],mediaSrc:["'self'",'blob:'],connectSrc:["'self'"],objectSrc:["'none'"],frameAncestors:["'self'"]}},crossOriginEmbedderPolicy:false}));
   app.use(express.json({limit:'100kb'}));
@@ -50,7 +57,7 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
     }
     next();
   });
-  app.get('/api/health', (req,res)=>res.json({ok:true,service:'afterglow',demoMode}));
+  app.get('/api/health', (req,res)=>res.json({ok:true,service:'primedrama',demoMode}));
   app.use(['/api','/media'], (req,res,next)=>{
     const token=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('afterglow_session='))?.slice(18);
     let session=token && /^[a-f0-9]{64}$/.test(token) ? db.prepare('SELECT * FROM sessions WHERE id=? AND expires>?').get(token,Date.now()):null;
@@ -60,13 +67,15 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
       session=db.prepare('SELECT * FROM sessions WHERE id=?').get(id);
       res.cookie('afterglow_session',id,{httpOnly:true,sameSite:'lax',secure:req.secure,maxAge:30*86400000,path:'/'});
     }
+    attachProfile(db,session);
     req.viewer=session;
     next();
   });
   const admin = (req,res,next)=>req.viewer.admin ? next():res.status(401).json({error:'请先登录管理后台'});
-  const serialize = d => ({...d,episodes:db.prepare("SELECT id,number,title,duration,(file LIKE 'demo:%') AS isDemo FROM episodes WHERE dramaId=? ORDER BY number").all(d.id).map(ep=>({...ep,isDemo:!!ep.isDemo}))});
+  const serialize = d => ({...d,artIndex:d.cover==='/assets/prime-posters.png'?dramas.findIndex(x=>x.id===d.id):-1,likes:db.prepare('SELECT count(*) AS n FROM drama_likes WHERE dramaId=?').get(d.id).n,comments:db.prepare('SELECT count(*) AS n FROM comments WHERE dramaId=?').get(d.id).n,saves:db.prepare('SELECT count(*) AS n FROM favorites WHERE dramaId=?').get(d.id).n,shares:db.prepare('SELECT count(*) AS n FROM shares WHERE dramaId=?').get(d.id).n,episodes:db.prepare("SELECT id,number,title,duration,(file LIKE 'demo:%') AS isDemo FROM episodes WHERE dramaId=? ORDER BY number").all(d.id).map(ep=>({...ep,isDemo:!!ep.isDemo}))});
   app.get('/api/catalog', (req,res)=>res.json(db.prepare('SELECT * FROM dramas ORDER BY rowid').all().map(serialize)));
-  app.get('/api/me', (req,res)=>res.json({plan:req.viewer.plan,admin:!!req.viewer.admin,demoMode,demoAdminLogin:demoMode&&!adminPassword,favorites:db.prepare('SELECT dramaId FROM favorites WHERE sessionId=?').all(req.viewer.id).map(x=>x.dramaId),progress:db.prepare('SELECT dramaId,episodeId,seconds,updated FROM progress WHERE sessionId=? ORDER BY updated DESC').all(req.viewer.id),billing:{provider:'PayPal',enabled:false,status:'not_connected'}}));
+  app.get('/api/me', (req,res)=>res.json({plan:req.viewer.plan,admin:!!req.viewer.admin,demoMode,demoAdminLogin:demoMode&&!adminPassword,...communityState(db,req.viewer.viewerId),favorites:db.prepare('SELECT dramaId FROM favorites WHERE sessionId=?').all(req.viewer.id).map(x=>x.dramaId),progress:db.prepare('SELECT dramaId,episodeId,seconds,updated FROM progress WHERE sessionId=? ORDER BY updated DESC').all(req.viewer.id),billing:{provider:'PayPal',enabled:false,status:'not_connected'}}));
+  registerCommunity(app,db,serialize);
   app.get('/api/settings', (req,res)=>res.json(settings()));
   app.post('/api/favorites/:id', (req,res)=>{
     if(!db.prepare('SELECT 1 FROM dramas WHERE id=?').get(req.params.id))return res.status(404).json({error:'Series not found.'});
@@ -117,7 +126,7 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
     // Rotate the session token when elevating privileges.
     const id=randomBytes(32).toString('hex');
     db.exec('BEGIN');
-    db.prepare('INSERT INTO sessions VALUES (?,?,1,?)').run(id,req.viewer.plan,Date.now()+8*3600000);
+    db.prepare('INSERT INTO sessions(id,plan,admin,expires,viewerId) VALUES (?,?,1,?,?)').run(id,req.viewer.plan,Date.now()+8*3600000,req.viewer.viewerId);
     db.prepare('INSERT INTO favorites SELECT ?,dramaId FROM favorites WHERE sessionId=?').run(id,req.viewer.id);
     db.prepare('INSERT INTO progress SELECT ?,dramaId,episodeId,seconds,updated FROM progress WHERE sessionId=?').run(id,req.viewer.id);
     db.prepare('DELETE FROM sessions WHERE id=?').run(req.viewer.id);
@@ -127,7 +136,7 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
   });
   app.post('/api/admin/logout',admin,(req,res)=>{db.prepare('UPDATE sessions SET admin=0 WHERE id=?').run(req.viewer.id);res.json({ok:true});});
   app.use('/api/admin',admin);
-  const dramaSchema=z.object({title:z.string().trim().min(1).max(100),tagline:z.string().max(160),description:z.string().max(2000),category:z.enum(['Romance','Drama','Thriller','Mystery']),freeEpisodes:z.number().int().min(0).max(500),badge:z.string().max(30).default('NEW SERIES')});
+  const dramaSchema=z.object({title:z.string().trim().min(1).max(100),tagline:z.string().max(160),description:z.string().max(2000),category:z.enum(['Romance','Drama','Thriller','Mystery','Revenge','Billionaire','Sweet']),freeEpisodes:z.number().int().min(0).max(500),badge:z.string().max(30).default('NEW SERIES')});
   app.post('/api/admin/dramas',(req,res)=>{
     const p=dramaSchema.parse(req.body),id=randomUUID();
     db.prepare('INSERT INTO dramas VALUES (?,?,?,?,?,?,?,?,?)').run(id,p.title,p.tagline,p.description,p.category,'#af8e68',p.freeEpisodes,p.badge,'/assets/posters/after-hours.svg');
