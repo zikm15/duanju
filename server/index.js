@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { createApp } from './app.js';
-const {app,db}=createApp({demoMode:process.env.DEMO_MODE==='true',dataDir:process.env.DATA_DIR});
+const {app,db}=createApp({demoMode:process.env.DEMO_MODE==='true',dataDir:process.env.DATA_DIR,trustProxyHops:Number(process.env.TRUST_PROXY_HOPS||0)});
 const root=path.resolve(import.meta.dirname,'..');
 if(process.env.NODE_ENV!=='production') {
   const {createServer}=await import('vite');

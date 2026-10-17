@@ -12,9 +12,11 @@ import { dramas } from './seed.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const hash = value => createHash('sha256').update(value).digest();
-export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = false, adminPassword = process.env.ADMIN_PASSWORD, mediaDir = path.join(root, 'media') } = {}) {
+export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = false, adminPassword = process.env.ADMIN_PASSWORD, mediaDir = path.join(root, 'media'), trustProxyHops = 0 } = {}) {
   if (!demoMode && (!adminPassword || adminPassword.length < 16)) throw new Error('正式模式必须配置至少 16 位的 ADMIN_PASSWORD；演示请明确设置 DEMO_MODE=true。');
   const app = express();
+  if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0 || trustProxyHops > 3) throw new Error('TRUST_PROXY_HOPS must be an integer from 0 to 3.');
+  if (trustProxyHops) app.set('trust proxy', trustProxyHops);
   fs.mkdirSync(path.join(dataDir, 'uploads'), {recursive:true});
   const db = new DatabaseSync(path.join(dataDir, 'afterglow.sqlite'));
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -64,7 +66,7 @@ export function createApp({ dataDir = path.join(root, '.runtime'), demoMode = fa
   const admin = (req,res,next)=>req.viewer.admin ? next():res.status(401).json({error:'请先登录管理后台'});
   const serialize = d => ({...d,episodes:db.prepare("SELECT id,number,title,duration,(file LIKE 'demo:%') AS isDemo FROM episodes WHERE dramaId=? ORDER BY number").all(d.id).map(ep=>({...ep,isDemo:!!ep.isDemo}))});
   app.get('/api/catalog', (req,res)=>res.json(db.prepare('SELECT * FROM dramas ORDER BY rowid').all().map(serialize)));
-  app.get('/api/me', (req,res)=>res.json({plan:req.viewer.plan,admin:!!req.viewer.admin,demoMode,favorites:db.prepare('SELECT dramaId FROM favorites WHERE sessionId=?').all(req.viewer.id).map(x=>x.dramaId),progress:db.prepare('SELECT dramaId,episodeId,seconds,updated FROM progress WHERE sessionId=? ORDER BY updated DESC').all(req.viewer.id),billing:{provider:'PayPal',enabled:false,status:'not_connected'}}));
+  app.get('/api/me', (req,res)=>res.json({plan:req.viewer.plan,admin:!!req.viewer.admin,demoMode,demoAdminLogin:demoMode&&!adminPassword,favorites:db.prepare('SELECT dramaId FROM favorites WHERE sessionId=?').all(req.viewer.id).map(x=>x.dramaId),progress:db.prepare('SELECT dramaId,episodeId,seconds,updated FROM progress WHERE sessionId=? ORDER BY updated DESC').all(req.viewer.id),billing:{provider:'PayPal',enabled:false,status:'not_connected'}}));
   app.get('/api/settings', (req,res)=>res.json(settings()));
   app.post('/api/favorites/:id', (req,res)=>{
     if(!db.prepare('SELECT 1 FROM dramas WHERE id=?').get(req.params.id))return res.status(404).json({error:'Series not found.'});

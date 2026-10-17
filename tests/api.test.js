@@ -88,3 +88,12 @@ test('production mode disables demo privileges and rejects weak admin configurat
   assert.equal((await request('/api/admin/login','POST',{password:'afterglow-preview'})).status,401);
   assert.equal((await request('/api/admin/login','POST',{password:'test-only-strong-password-123'})).status,200);
 });
+test('hosted preview hides the shared admin password and sets Secure cookies behind the trusted HTTPS proxy',async t=>{
+  const {request}=await fixture(t,{demoMode:true,adminPassword:'test-hosted-admin-password-123',trustProxyHops:1});
+  const res=await request('/api/me','GET',undefined,{'X-Forwarded-Proto':'https'});
+  assert.match(res.headers.get('set-cookie'),/; Secure/);
+  const me=await res.json();assert.equal(me.demoMode,true);assert.equal(me.demoAdminLogin,false);
+  assert.equal((await request('/api/admin/login','POST',{password:'afterglow-preview'})).status,401);
+  assert.equal((await request('/api/admin/login','POST',{password:'test-hosted-admin-password-123'})).status,200);
+  assert.equal((await request('/api/demo/plan','POST',{plan:'premium'})).status,200);
+});

@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: afterglow-preview
+    runtime: docker
+    repo: https://github.com/zikm15/duanju
+    branch: afterglow-v1-preview
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: NODE_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: DATA_DIR
+        value: /var/data/afterglow
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: ADMIN_PASSWORD
+        generateValue: true
+    disk:
+      name: afterglow-data
+      mountPath: /var/data
+      sizeGB: 1
