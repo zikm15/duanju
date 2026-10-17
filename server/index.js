@@ -14,5 +14,5 @@ if(process.env.NODE_ENV!=='production') {
   app.get('/{*splat}',(req,res)=>res.sendFile(path.join(root,'dist','index.html')));
 }
 const port=Number(process.env.PORT||3000);
-const server=app.listen(port,'0.0.0.0',()=>console.log(`Afterglow listening on port ${port}; demo=${process.env.DEMO_MODE==='true'}`));
+const server=app.listen(port,'0.0.0.0',()=>console.log(`PrimeDrama listening on port ${port}; demo=${process.env.DEMO_MODE==='true'}`));
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>server.close(()=>{db.close();process.exit(0);}));

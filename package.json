@@ -1,9 +1,11 @@
 {
-  "name": "afterglow",
+  "name": "primedrama",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "node server/index.js",
     "build": "tsc --noEmit && vite build",
@@ -12,9 +14,10 @@
     "test": "node --test tests/api.test.js",
     "test:browser": "node tests/browser.mjs",
     "test:container": "node tests/container.mjs",
-    "media": "node scripts/generate-media.mjs"
+    "media": "node scripts/generate-prime-media.mjs"
   },
   "dependencies": {
+    "@fontsource/roboto": "^5.3.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
